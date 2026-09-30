@@ -1,4 +1,4 @@
 package streaming;
 
-record TestKey(String taskPath, String className, String testName) {
+record TestKey(String taskPath, String className, String testId) {
 }

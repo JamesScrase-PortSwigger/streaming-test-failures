@@ -8,14 +8,15 @@ import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
-record FailedTest(String taskPath, String className, String testName, String headline, String stackTrace, SourceLocator.Location location, Instant failedAt) {
+record FailedTest(String taskPath, String className, String testId, String testName, String headline, String stackTrace, SourceLocator.Location location, Instant failedAt) {
     private static final int HEADLINE_FRAMES = 12;
 
     static FailedTest from(String taskPath, TestDescriptor test, List<Throwable> exceptions, SourceLocator sourceLocator) {
         return new FailedTest(
                 taskPath,
                 test.getClassName(),
-                test.getDisplayName(),
+                test.getName(),
+                displayNameWithinClass(test),
                 headline(exceptions),
                 stackTraces(exceptions),
                 sourceLocator.locate(test.getClassName(), test.getName(), exceptions),
@@ -23,7 +24,7 @@ record FailedTest(String taskPath, String className, String testName, String hea
     }
 
     TestKey key() {
-        return new TestKey(taskPath, className, testName);
+        return new TestKey(taskPath, className, testId);
     }
 
     String title() {
@@ -37,6 +38,12 @@ record FailedTest(String taskPath, String className, String testName, String hea
     private String simpleClassName() {
         String withoutPackage = className.substring(className.lastIndexOf('.') + 1);
         return withoutPackage.replace('$', '.');
+    }
+
+    private static String displayNameWithinClass(TestDescriptor test) {
+        TestDescriptor parent = test.getParent();
+        boolean parentIsTheClass = parent == null || parent.getName().equals(test.getClassName());
+        return parentIsTheClass ? test.getDisplayName() : parent.getDisplayName() + " > " + test.getDisplayName();
     }
 
     private static String headline(List<Throwable> exceptions) {

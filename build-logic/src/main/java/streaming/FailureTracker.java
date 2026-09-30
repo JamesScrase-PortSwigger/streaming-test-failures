@@ -20,44 +20,60 @@ class FailureTracker {
     private long version;
 
     private static final class History {
+        private final TestKey key;
         private FailedTest lastFailure;
+        private int attempts;
         private int failedAttempts;
-        private boolean passedOnRetry;
+        private boolean lastAttemptPassed;
         private boolean finalised;
 
+        private History(TestKey key) {
+            this.key = key;
+        }
+
+        private boolean everFailed() {
+            return failedAttempts > 0;
+        }
+
         private boolean awaitingRetry() {
-            return !finalised && !passedOnRetry;
+            return everFailed() && !finalised && !lastAttemptPassed;
         }
 
         private boolean failed() {
-            return finalised && !passedOnRetry;
+            return everFailed() && finalised && !lastAttemptPassed;
+        }
+
+        private boolean flaky() {
+            return everFailed() && lastAttemptPassed;
         }
     }
 
     synchronized void failed(FailedTest failure, RetryPolicy retryPolicy) {
-        History history = histories.computeIfAbsent(failure.key(), key -> new History());
+        History history = histories.computeIfAbsent(failure.key(), History::new);
         history.lastFailure = failure;
+        history.attempts++;
         history.failedAttempts++;
-        history.passedOnRetry = false;
+        history.lastAttemptPassed = false;
 
-        if (retryPolicy.isLastAttempt(history.failedAttempts)) {
+        if (retryPolicy.isLastAttempt(history.attempts)) {
             markFailed(history);
         } else if (history.failedAttempts == 1) {
-            unpublished.add(new Annotation(failure, WARNING, failure.title() + " — failed, may be retried"));
+            unpublished.add(new Annotation(failure, WARNING, failure.title() + " — " + firstFailureDescription(history)));
         }
         version++;
     }
 
     synchronized void passed(TestKey key) {
-        History history = histories.get(key);
-        if (history != null && !history.passedOnRetry) {
-            history.passedOnRetry = true;
+        History history = histories.computeIfAbsent(key, History::new);
+        history.attempts++;
+        history.lastAttemptPassed = true;
+        if (history.everFailed()) {
             version++;
         }
     }
 
     synchronized void taskFinished(String taskPath) {
-        markRemainingFailed(history -> history.lastFailure.taskPath().equals(taskPath));
+        markRemainingFailed(history -> history.key.taskPath().equals(taskPath));
     }
 
     synchronized void buildFinished() {
@@ -79,7 +95,7 @@ class FailureTracker {
     synchronized Report report() {
         List<History> failed = matching(History::failed);
         List<History> awaitingRetry = matching(History::awaitingRetry);
-        List<History> flaky = matching(history -> history.passedOnRetry);
+        List<History> flaky = matching(History::flaky);
 
         String summary = section("Failed", failed)
                 + section("Failed, may be retried", awaitingRetry)
@@ -99,8 +115,25 @@ class FailureTracker {
     private void markFailed(History history) {
         history.finalised = true;
         FailedTest failure = history.lastFailure;
-        String attempts = history.failedAttempts == 1 ? "failed" : "failed all " + history.failedAttempts + " attempts";
-        unpublished.add(new Annotation(failure, FAILURE, failure.title() + " — " + attempts));
+        unpublished.add(new Annotation(failure, FAILURE, failure.title() + " — " + finalFailureDescription(history)));
+    }
+
+    private static String firstFailureDescription(History history) {
+        return history.attempts == 1 ? "failed, may be retried" : "failed on attempt " + history.attempts + " after passing, may be retried";
+    }
+
+    private static String finalFailureDescription(History history) {
+        if (history.attempts == 1) {
+            return "failed";
+        }
+        if (history.failedAttempts == history.attempts) {
+            return "failed all " + history.attempts + " attempts";
+        }
+        return "failed its last attempt (" + attemptsSummary(history) + ")";
+    }
+
+    private static String attemptsSummary(History history) {
+        return history.failedAttempts + " of " + history.attempts + " attempts failed";
     }
 
     private List<History> matching(Predicate<History> predicate) {
@@ -130,7 +163,7 @@ class FailureTracker {
         }
         String listed = histories.stream()
                 .limit(SUMMARY_TESTS_PER_SECTION)
-                .map(history -> "- `" + history.lastFailure.title() + "` (" + history.lastFailure.taskPath() + ", " + history.failedAttempts + " failed attempt" + (history.failedAttempts == 1 ? "" : "s") + ")")
+                .map(history -> "- `" + history.lastFailure.title() + "` (" + history.key.taskPath() + ", " + attemptsSummary(history) + ")")
                 .collect(Collectors.joining("\n"));
         String overflow = histories.size() > SUMMARY_TESTS_PER_SECTION ? "\n- … and " + (histories.size() - SUMMARY_TESTS_PER_SECTION) + " more" : "";
         return "### " + heading + " (" + histories.size() + ")\n\n" + listed + overflow + "\n\n";

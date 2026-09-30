@@ -31,7 +31,7 @@ class StreamingFailureListener implements TestListener {
         if (result.getResultType() == FAILURE) {
             reportFailure(test, result.getExceptions());
         } else if (result.getResultType() == SUCCESS) {
-            service.get().passed(new TestKey(taskPath, test.getClassName(), test.getDisplayName()));
+            service.get().passed(new TestKey(taskPath, test.getClassName(), test.getName()));
         }
     }
 

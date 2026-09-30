@@ -30,9 +30,21 @@ that is really failing gets a `failure`:
 | event | annotation | title/summary |
 |---|---|---|
 | First failed attempt, retries left | `warning`: "failed, may be retried" | counted as *may be retried* |
-| Failed attempt number `maxRetries + 1` | `failure`: "failed all N attempts" | counted as *failed* |
+| Attempt number `maxRetries + 1` fails | `failure`: "failed all N attempts" (or "failed its last attempt (M of N attempts failed)") | counted as *failed* |
 | Still failing when its task finishes (retry filter skipped it, `maxFailures` exceeded, …) | `failure` | counted as *failed* |
 | Passes after failing | none (the earlier warning stays) | counted as *flaky* |
+
+**Parameterised and dynamic tests.** test-retry re-runs *every* invocation of
+a method that had any failing invocation, so each invocation can flake in its
+own way (pass, fail, pass). The plugin therefore:
+
+- matches attempts on Gradle's stable test name (`method(int)[1]`), not the
+  display name, which can differ between attempts (`Named.of(... + nanoTime)`)
+  or repeat across methods (`[1] 1`, `case 1`);
+- counts every execution of an invocation, passes included, as an attempt. An
+  invocation that passes, then fails, then fails again reaches its last attempt
+  on the third run, with 2 of its 3 attempts failed;
+- titles annotations `Class > method(int) > [1] 1`, as Gradle's console does.
 
 The plugin reads `maxRetries` from the task's `retry {}` extension. Retries show
 up as further `afterTest` events for the same class and test name, and a task
@@ -54,7 +66,10 @@ anything still waiting on a retry.
 
 - **Stream via check run API** runs the demo suite (`maxRetries = 2`).
   Per case: a third always fail, a third fail only on the first attempt, and a
-  third pass. There are also quick always-failing, flaky and nested-class tests.
+  third pass. There are also quick always-failing, flaky and nested-class tests,
+  and `ParameterisedFlakesTest`, whose invocations flake differently from one
+  another, repeat display names across methods, or change their display name
+  on every attempt.
 - **Observe annotations while tests run** polls the check run every 10 s and
   writes a timeline to its job summary.
 - **Inspect check runs after completion** dumps the final title, summary and
