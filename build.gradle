@@ -3,6 +3,8 @@ plugins {
     id 'streaming-test-failures'
 }
 
+apply plugin: 'org.gradle.test-retry'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -21,7 +23,14 @@ dependencies {
 
 tasks.named('test', Test) {
     useJUnitPlatform()
-    systemProperty 'demo.cases', providers.gradleProperty('demo.cases').getOrElse('18')
-    systemProperty 'demo.delayMillis', providers.gradleProperty('demo.delayMillis').getOrElse('10000')
+    systemProperty 'demo.cases', providers.gradleProperty('demo.cases').getOrElse('9')
+    systemProperty 'demo.delayMillis', providers.gradleProperty('demo.delayMillis').getOrElse('6000')
+    def attemptsDir = layout.buildDirectory.dir('demo-attempts').get().asFile
+    systemProperty 'demo.attemptsDir', attemptsDir.absolutePath
+    doFirst { attemptsDir.deleteDir() }
     outputs.upToDateWhen { false }
+    retry {
+        maxRetries = 2
+        maxFailures = 20
+    }
 }

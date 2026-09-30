@@ -22,6 +22,10 @@ record FailedTest(String taskPath, String className, String testName, String hea
                 Instant.now());
     }
 
+    TestKey key() {
+        return new TestKey(taskPath, className, testName);
+    }
+
     String title() {
         return simpleClassName() + " > " + testName;
     }
