@@ -1,0 +1,27 @@
+plugins {
+    id 'java'
+    id 'streaming-test-failures'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.13.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    systemProperty 'demo.cases', providers.gradleProperty('demo.cases').getOrElse('18')
+    systemProperty 'demo.delayMillis', providers.gradleProperty('demo.delayMillis').getOrElse('10000')
+    outputs.upToDateWhen { false }
+}

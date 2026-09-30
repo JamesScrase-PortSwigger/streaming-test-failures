@@ -1,0 +1,18 @@
+plugins {
+    id 'java-gradle-plugin'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+gradlePlugin {
+    plugins {
+        streamingTestFailures {
+            id = 'streaming-test-failures'
+            implementationClass = 'streaming.StreamingTestFailuresPlugin'
+        }
+    }
+}
