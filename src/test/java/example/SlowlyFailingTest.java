@@ -19,7 +19,7 @@ class SlowlyFailingTest {
 
     @Test
     void givenAnEarlyAssertion_thenItFailsBeforeTheSlowCases() {
-        assertEquals("expected", "actual", "fails first, so the earliest annotation should point at this line");
+        assertEquals("expected", "actual", "fails first; its annotation should land on this line in the PR diff");
     }
 
     @TestFactory
