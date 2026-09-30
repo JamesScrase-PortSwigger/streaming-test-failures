@@ -8,6 +8,14 @@ java {
     }
 }
 
+repositories {
+    gradlePluginPortal()
+}
+
+dependencies {
+    implementation 'org.gradle:test-retry-gradle-plugin:1.6.2'
+}
+
 gradlePlugin {
     plugins {
         streamingTestFailures {

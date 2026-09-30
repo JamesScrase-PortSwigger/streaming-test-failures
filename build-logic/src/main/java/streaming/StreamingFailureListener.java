@@ -8,29 +8,37 @@ import org.gradle.api.tasks.testing.TestResult;
 import java.util.List;
 
 import static org.gradle.api.tasks.testing.TestResult.ResultType.FAILURE;
+import static org.gradle.api.tasks.testing.TestResult.ResultType.SUCCESS;
 
 class StreamingFailureListener implements TestListener {
     private final Provider<FailureStreamService> service;
     private final SourceLocator sourceLocator;
     private final String taskPath;
+    private final Provider<RetryPolicy> retryPolicy;
 
-    StreamingFailureListener(Provider<FailureStreamService> service, SourceLocator sourceLocator, String taskPath) {
+    StreamingFailureListener(Provider<FailureStreamService> service, SourceLocator sourceLocator, String taskPath, Provider<RetryPolicy> retryPolicy) {
         this.service = service;
         this.sourceLocator = sourceLocator;
         this.taskPath = taskPath;
+        this.retryPolicy = retryPolicy;
     }
 
     @Override
     public void afterTest(TestDescriptor test, TestResult result) {
-        if (result.getResultType() == FAILURE && test.getClassName() != null) {
-            report(test, result.getExceptions());
+        if (test.getClassName() == null) {
+            return;
+        }
+        if (result.getResultType() == FAILURE) {
+            reportFailure(test, result.getExceptions());
+        } else if (result.getResultType() == SUCCESS) {
+            service.get().passed(new TestKey(taskPath, test.getClassName(), test.getName()));
         }
     }
 
     @Override
     public void afterSuite(TestDescriptor suite, TestResult result) {
         if (isClassLevelFailure(suite, result)) {
-            report(suite, result.getExceptions());
+            reportFailure(suite, result.getExceptions());
         }
     }
 
@@ -38,8 +46,8 @@ class StreamingFailureListener implements TestListener {
         return result.getResultType() == FAILURE && suite.getClassName() != null && result.getFailedTestCount() == 0;
     }
 
-    private void report(TestDescriptor test, List<Throwable> exceptions) {
-        service.get().report(FailedTest.from(taskPath, test, exceptions, sourceLocator));
+    private void reportFailure(TestDescriptor test, List<Throwable> exceptions) {
+        service.get().failed(FailedTest.from(taskPath, test, exceptions, sourceLocator), retryPolicy.get());
     }
 
     @Override
